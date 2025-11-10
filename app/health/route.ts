@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb-proofs';
-import subscriptionsClientPromise from '@/lib/mongodb-subscriptions';
+import proofsClientPromise from '@/lib/mongodb-proofs';
+import metadataClientPromise from '@/lib/mongodb-metadata';
 
 /**
  * GET /api/health
@@ -12,7 +12,7 @@ export async function GET() {
     // Check proofs database connection
     let proofsStatus = 'disconnected';
     try {
-      const client = await clientPromise;
+      const client = await proofsClientPromise;
       await client.db().admin().ping();
       proofsStatus = 'connected';
     } catch (error) {
@@ -20,17 +20,13 @@ export async function GET() {
     }
 
     // Check metadata database connection
-    // TODO: Add metadata database connection check when implemented
-    const metadataStatus = 'not implemented';
-
-    // Check subscriptions database connection
-    let subscriptionsStatus = 'disconnected';
+    let metadataStatus = 'disconnected';
     try {
-      const client = await subscriptionsClientPromise;
+      const client = await metadataClientPromise;
       await client.db().admin().ping();
-      subscriptionsStatus = 'connected';
+      metadataStatus = 'connected';
     } catch (error) {
-      console.error('Subscriptions database connection error:', error);
+      console.error('Metadata database connection error:', error);
     }
 
     return NextResponse.json({
@@ -39,7 +35,6 @@ export async function GET() {
       databases: {
         proofs: proofsStatus,
         metadata: metadataStatus,
-        subscriptions: subscriptionsStatus,
       },
       timestamp: new Date().toISOString(),
     });
