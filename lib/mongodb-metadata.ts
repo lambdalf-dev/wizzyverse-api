@@ -1,34 +1,45 @@
 import { MongoClient, MongoClientOptions } from 'mongodb';
 
-if (!process.env.METADATA_MONGODB_URI) {
-  throw new Error('Please add your Mongo URI to .env.local');
-}
-
-const uri = process.env.METADATA_MONGODB_URI;
 const options: MongoClientOptions = {};
 
 let client: MongoClient;
 let clientPromise: Promise<MongoClient>;
 
-if (process.env.NODE_ENV === 'development') {
-  // In development mode, use a global variable so that the value
-  // is preserved across module reloads caused by HMR (Hot Module Replacement).
-  const globalWithMongo = global as typeof globalThis & {
-    _mongoMetadataClientPromise?: Promise<MongoClient>;
-  };
-
-  if (!globalWithMongo._mongoMetadataClientPromise) {
-    client = new MongoClient(uri, options);
-    globalWithMongo._mongoMetadataClientPromise = client.connect();
+function getClientPromise(): Promise<MongoClient> {
+  const uri = process.env.METADATA_MONGODB_URI;
+  
+  if (!uri) {
+    throw new Error('Please add your Mongo URI to .env.local');
   }
-  clientPromise = globalWithMongo._mongoMetadataClientPromise;
-} else {
-  // In production mode, it's best to not use a global variable.
-  client = new MongoClient(uri, options);
-  clientPromise = client.connect();
+
+  if (process.env.NODE_ENV === 'development') {
+    // In development mode, use a global variable so that the value
+    // is preserved across module reloads caused by HMR (Hot Module Replacement).
+    const globalWithMongo = global as typeof globalThis & {
+      _mongoMetadataClientPromise?: Promise<MongoClient>;
+    };
+
+    if (!globalWithMongo._mongoMetadataClientPromise) {
+      client = new MongoClient(uri, options);
+      globalWithMongo._mongoMetadataClientPromise = client.connect();
+    }
+    return globalWithMongo._mongoMetadataClientPromise;
+  } else {
+    // In production mode, it's best to not use a global variable.
+    if (!clientPromise) {
+      client = new MongoClient(uri, options);
+      clientPromise = client.connect();
+    }
+    return clientPromise;
+  }
 }
+
+// Create a lazy promise that only validates and connects when actually awaited
+// This prevents build-time errors when environment variables aren't set
+const lazyClientPromise = Promise.resolve().then(() => getClientPromise());
 
 // Export a module-scoped MongoClient promise. By doing this in a
 // separate module, the client can be shared across functions.
-export default clientPromise;
+// Validation happens when the promise is actually awaited, not at module load time.
+export default lazyClientPromise;
 
