@@ -87,9 +87,9 @@ async function importMetadata(jsonFilePath) {
     // Prepare documents for insertion
     // Note: tokenId starts as null and will be assigned by the shuffle/reveal script
     const documents = entries.map(([recordKey, data]) => {
-      // Validate image
-      if (!data.image || typeof data.image !== 'string') {
-        throw new Error(`Invalid image for record: ${recordKey}`);
+      // Validate modelId (required - used to generate image/animation URLs)
+      if (!data.modelId || typeof data.modelId !== 'string') {
+        throw new Error(`Invalid or missing modelId for record: ${recordKey}. modelId is required.`);
       }
       
       // Validate attributes
@@ -110,15 +110,26 @@ async function importMetadata(jsonFilePath) {
         }
       });
       
+      // Build metadata object - explicitly exclude image/animation (they are generated, not stored)
+      const metadata = {
+        modelId: data.modelId,
+        attributes: data.attributes.map(attr => ({
+          trait_type: attr.trait_type,
+          value: attr.value,
+        })),
+      };
+      
+      // Include optional fields if present
+      if (data.name !== undefined) {
+        metadata.name = data.name;
+      }
+      if (data.description !== undefined) {
+        metadata.description = data.description;
+      }
+      
       return {
         tokenId: null, // Will be assigned by shuffle/reveal script
-        metadata: {
-          image: data.image,
-          attributes: data.attributes.map(attr => ({
-            trait_type: attr.trait_type,
-            value: attr.value,
-          })),
-        },
+        metadata: metadata,
       };
     });
     
@@ -136,8 +147,10 @@ async function importMetadata(jsonFilePath) {
     if (sample.length > 0) {
       console.log('\n📋 Sample of imported data:');
       sample.forEach((doc, index) => {
-        console.log(`   ${index + 1}. Token ID: ${doc.tokenId} - Name: ${doc.metadata.name}`);
-        console.log(`      Image: ${doc.metadata.image}, Attributes: ${doc.metadata.attributes.length}`);
+        const modelIdInfo = doc.metadata.modelId || 'N/A';
+        console.log(`   ${index + 1}. Token ID: ${doc.tokenId || 'null'} - ModelId: ${modelIdInfo}`);
+        console.log(`      Image/Animation URLs will be generated from modelId`);
+        console.log(`      Attributes: ${doc.metadata.attributes?.length || 0}`);
       });
     }
     

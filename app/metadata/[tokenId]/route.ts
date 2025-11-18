@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { metadataService } from '@/lib/metadata-service';
 import { contractService } from '@/lib/contract-service';
+import { processMetadataFields } from '@/lib/utils/metadata-processor';
+import { StoredTokenMetadata } from '@/types/metadata';
 
 /**
  * GET /metadata/[tokenId]
@@ -38,48 +40,46 @@ export async function GET(
     }
 
     // Check if token is minted on-chain
-    // If the contract check fails, we'll still try to return metadata from DB
-    // (useful for pre-reveal scenarios or if there are temporary contract issues)
     let isMinted = false;
     let contractCheckError: Error | null = null;
     
     try {
       isMinted = await contractService.isTokenMinted(tokenId);
     } catch (error) {
-      console.warn(`Contract check failed for token ${tokenId}, will check database anyway:`, error);
+      console.warn(`Contract check failed for token ${tokenId}:`, error);
       contractCheckError = error instanceof Error ? error : new Error('Unknown contract check error');
     }
 
     // If contract check explicitly says token is not minted, return 404
+    // Unminted tokens should always return 404, even if metadata exists in database
     if (!isMinted && !contractCheckError) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Token not found or not minted',
+          error: 'Token not found',
           tokenId: tokenId,
         },
         { status: 404 }
       );
     }
 
-    // Fetch metadata from database
-    // Even if contract check failed, we'll try to return metadata
-    // (this handles pre-reveal scenarios where metadata exists but contract might have issues)
-    const metadataEntry = await metadataService.getMetadataByTokenId(tokenId);
+    // If contract check failed, we can't verify mint status, so return 404 for safety
+    if (contractCheckError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Unable to verify token mint status',
+          tokenId: tokenId,
+        },
+        { status: 404 }
+      );
+    }
 
-    if (!metadataEntry) {
-      // If token is confirmed minted but metadata not found, return placeholder metadata
-      // This handles pre-reveal scenarios where tokens are minted but metadata hasn't been assigned yet
-      if (isMinted) {
-        const paddedTokenId = String(tokenIdNumber).padStart(5, '0');
-        return NextResponse.json({
-          name: `Wizzy the [color] #${paddedTokenId}`,
-          description: 'A unique Wizzyverse NFT',
-          image: 'placeholder.png',
-        });
-      }
-      
-      // Token not minted and no metadata found
+    // Token is confirmed minted - fetch metadata from database
+    const metadataResult = await metadataService.getMetadataByTokenId(tokenId);
+
+    if (!metadataResult) {
+      // Token is minted but metadata not found - return 404
       return NextResponse.json(
         {
           success: false,
@@ -90,8 +90,9 @@ export async function GET(
       );
     }
 
-    // Return metadata directly
-    return NextResponse.json(metadataEntry.metadata);
+    // Return processed metadata (with generated image/animation URLs based on reveal status)
+    // modelId is never included in the response
+    return NextResponse.json(metadataResult.metadata);
   } catch (error) {
     console.error('Error processing metadata request:', error);
     return NextResponse.json(

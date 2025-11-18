@@ -12,6 +12,7 @@
     "start-db": "docker start mongodb",
     "import-whitelist": "node scripts/import-whitelist.js",
     "import-metadata": "node scripts/import-metadata.js",
+    "import-metadata-csv": "node scripts/import-metadata-csv.js",
     "shuffle-reveal": "node scripts/shuffle-reveal.js",
     "verify-metadata": "node scripts/verify-metadata.js",
     "clear-metadata": "node scripts/clear-metadata.js",

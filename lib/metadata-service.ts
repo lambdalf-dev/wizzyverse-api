@@ -1,7 +1,8 @@
 import { Collection } from 'mongodb';
 import clientPromise from './mongodb-metadata';
-import { MetadataEntry } from '@/types/metadata';
+import { MetadataEntry, TokenMetadata } from '@/types/metadata';
 import { sanitizeMongoDocument } from './utils/data-sanitizer';
+import { processMetadataFields } from './utils/metadata-processor';
 
 class MetadataService {
   private collectionName = 'metadata';
@@ -29,8 +30,11 @@ class MetadataService {
 
   /**
    * Get metadata for a specific token ID
+   * Returns processed metadata with generated image/animation URLs
+   * @param tokenId - The token ID to fetch metadata for
+   * @returns Object with metadata and reveal status, or null if not found
    */
-  async getMetadataByTokenId(tokenId: string): Promise<MetadataEntry | null> {
+  async getMetadataByTokenId(tokenId: string): Promise<{ metadata: TokenMetadata; isRevealed: boolean } | null> {
     try {
       const collection = await this.getCollection();
       
@@ -42,7 +46,23 @@ class MetadataService {
         return null;
       }
 
-      return sanitizeMongoDocument(document) as MetadataEntry;
+      const sanitized = sanitizeMongoDocument(document) as MetadataEntry;
+      
+      // Process stored metadata to generate image/animation URLs
+      // Image and animation are NEVER stored, always generated from modelId
+      if (!sanitized.metadata) {
+        return null;
+      }
+
+      // Token is revealed if it has a non-null tokenId (which it does, since we found it by tokenId)
+      const isRevealed = sanitized.tokenId !== null;
+      
+      const processedMetadata = processMetadataFields(sanitized.metadata, isRevealed);
+      
+      return {
+        metadata: processedMetadata,
+        isRevealed,
+      };
     } catch (error) {
       console.error('Error fetching metadata:', error);
       throw new Error(`Failed to fetch metadata: ${error instanceof Error ? error.message : 'Unknown error'}`);
