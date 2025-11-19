@@ -137,7 +137,7 @@ async function shuffleAndReveal() {
     if (sample.length > 0) {
       console.log('\n📋 Sample of shuffled assignments:');
       sample.forEach((doc) => {
-        console.log(`   Token ID: ${doc.tokenId} - Image: ${doc.metadata.image}`);
+        console.log(`   Token ID: ${doc.tokenId} - Model ID: ${doc.metadata.modelId || 'N/A'}`);
       });
     }
     

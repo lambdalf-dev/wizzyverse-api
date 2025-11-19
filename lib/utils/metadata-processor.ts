@@ -190,7 +190,9 @@ export function processMetadataFields(
     // Generate animation from modelId (only after reveal)
     animation = generateAnimationUrl(metadata.modelId);
   } else {
-    // Before reveal: show placeholder image, no animation
+    // Before reveal: show placeholder image and optional animation
+    const placeholderAnimationPath = process.env.METADATA_PLACEHOLDER_ANIMATION_PATH;
+    
     if (!placeholderImagePath) {
       throw new Error('METADATA_PLACEHOLDER_IMAGE_PATH environment variable is required for pre-reveal tokens');
     }
@@ -198,9 +200,14 @@ export function processMetadataFields(
     // Get optional base URL for relative paths
     const baseUrl = process.env.METADATA_ASSETS_BASE_URL || process.env.NEXT_PUBLIC_API_URL;
     
-    // Process placeholder URL to handle both relative and absolute paths
+    // Process placeholder image URL
     image = processUrl(placeholderImagePath, baseUrl);
-    // animation is undefined (not included before reveal)
+    
+    // Process placeholder animation URL if provided (optional)
+    if (placeholderAnimationPath) {
+      animation = processUrl(placeholderAnimationPath, baseUrl);
+    }
+    // animation remains undefined if METADATA_PLACEHOLDER_ANIMATION_PATH is not set
   }
 
   // Check if this is an Archmage token
@@ -299,8 +306,8 @@ export function processMetadataFields(
     // If not revealed or no tokenId, name remains undefined
   }
 
-  // Only include animation if revealed
-  if (isRevealed && animation) {
+  // Include animation (either placeholder or actual based on reveal status)
+  if (animation) {
     result.animation = animation;
   }
 
@@ -315,6 +322,7 @@ export function processMetadataFields(
  */
 export function generatePlaceholderMetadata(tokenId: string): TokenMetadata {
   const placeholderImagePath = process.env.METADATA_PLACEHOLDER_IMAGE_PATH;
+  const placeholderAnimationPath = process.env.METADATA_PLACEHOLDER_ANIMATION_PATH;
   
   if (!placeholderImagePath) {
     throw new Error('METADATA_PLACEHOLDER_IMAGE_PATH environment variable is required');
@@ -333,11 +341,17 @@ export function generatePlaceholderMetadata(tokenId: string): TokenMetadata {
   const paddedTokenId = String(tokenId).padStart(5, '0');
   const name = `Wizzy #${paddedTokenId}`;
   
-  return {
+  const result: TokenMetadata = {
     image,
     name,
     description: defaultDescription,
-    // No attributes or animation for pre-reveal tokens
   };
+  
+  // Include placeholder animation if provided (optional)
+  if (placeholderAnimationPath) {
+    result.animation = processUrl(placeholderAnimationPath, baseUrl);
+  }
+  
+  return result;
 }
 
