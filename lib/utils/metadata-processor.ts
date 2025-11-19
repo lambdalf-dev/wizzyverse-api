@@ -5,6 +5,34 @@
 import { StoredTokenMetadata, TokenMetadata } from '@/types/metadata';
 
 /**
+ * Process a URL to handle both relative and absolute paths
+ * @param url - The URL to process (can be relative or absolute)
+ * @param baseUrl - Optional base URL to prepend for relative URLs
+ * @returns Processed URL
+ */
+function processUrl(url: string, baseUrl?: string): string {
+  if (!url) {
+    return url;
+  }
+
+  // If URL is already absolute (starts with http:// or https://), return as-is
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+
+  // If base URL is provided and URL is relative, prepend base URL
+  if (baseUrl) {
+    // Remove trailing slash from baseUrl and leading slash from url if present
+    const cleanBaseUrl = baseUrl.replace(/\/$/, '');
+    const cleanUrl = url.startsWith('/') ? url : `/${url}`;
+    return `${cleanBaseUrl}${cleanUrl}`;
+  }
+
+  // If no base URL and URL is relative, ensure it starts with /
+  return url.startsWith('/') ? url : `/${url}`;
+}
+
+/**
  * Generate image URL from modelId using environment variable pattern
  * @param modelId - The model ID
  * @returns Generated image URL
@@ -17,7 +45,13 @@ function generateImageUrl(modelId: string): string {
   }
   
   // Replace {modelId} placeholder with actual modelId
-  return imagePathPattern.replace(/{modelId}/g, modelId);
+  const url = imagePathPattern.replace(/{modelId}/g, modelId);
+  
+  // Get optional base URL for relative paths
+  const baseUrl = process.env.METADATA_ASSETS_BASE_URL || process.env.NEXT_PUBLIC_API_URL;
+  
+  // Process URL to handle both relative and absolute paths
+  return processUrl(url, baseUrl);
 }
 
 /**
@@ -33,7 +67,13 @@ function generateAnimationUrl(modelId: string): string {
   }
   
   // Replace {modelId} placeholder with actual modelId
-  return animationPathPattern.replace(/{modelId}/g, modelId);
+  const url = animationPathPattern.replace(/{modelId}/g, modelId);
+  
+  // Get optional base URL for relative paths
+  const baseUrl = process.env.METADATA_ASSETS_BASE_URL || process.env.NEXT_PUBLIC_API_URL;
+  
+  // Process URL to handle both relative and absolute paths
+  return processUrl(url, baseUrl);
 }
 
 /**
@@ -152,7 +192,12 @@ export function processMetadataFields(
     if (!placeholderImagePath) {
       throw new Error('METADATA_PLACEHOLDER_IMAGE_PATH environment variable is required for pre-reveal tokens');
     }
-    image = placeholderImagePath;
+    
+    // Get optional base URL for relative paths
+    const baseUrl = process.env.METADATA_ASSETS_BASE_URL || process.env.NEXT_PUBLIC_API_URL;
+    
+    // Process placeholder URL to handle both relative and absolute paths
+    image = processUrl(placeholderImagePath, baseUrl);
     // animation is undefined (not included before reveal)
   }
 

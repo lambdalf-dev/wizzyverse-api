@@ -43,6 +43,7 @@ class MetadataService {
       });
 
       if (!document) {
+        console.log(`Metadata not found for tokenId: ${tokenId}`);
         return null;
       }
 

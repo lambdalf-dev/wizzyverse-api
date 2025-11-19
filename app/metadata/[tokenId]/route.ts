@@ -41,18 +41,25 @@ export async function GET(
 
     // Check if token is minted on-chain
     let isMinted = false;
-    let contractCheckError: Error | null = null;
     
     try {
       isMinted = await contractService.isTokenMinted(tokenId);
     } catch (error) {
-      console.warn(`Contract check failed for token ${tokenId}:`, error);
-      contractCheckError = error instanceof Error ? error : new Error('Unknown contract check error');
+      // If contract check failed, return error immediately without checking database
+      console.error(`Contract check failed for token ${tokenId}:`, error);
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Unable to verify token mint status. Please try again later.',
+          tokenId: tokenId,
+        },
+        { status: 503 } // Service Unavailable
+      );
     }
 
     // If contract check explicitly says token is not minted, return 404
     // Unminted tokens should always return 404, even if metadata exists in database
-    if (!isMinted && !contractCheckError) {
+    if (!isMinted) {
       return NextResponse.json(
         {
           success: false,
@@ -63,23 +70,25 @@ export async function GET(
       );
     }
 
-    // If contract check failed, we can't verify mint status, so return 404 for safety
-    if (contractCheckError) {
+    // Token is confirmed minted - fetch metadata from database
+    let metadataResult;
+    try {
+      metadataResult = await metadataService.getMetadataByTokenId(tokenId);
+    } catch (error) {
+      console.error(`Error fetching metadata for token ${tokenId}:`, error);
       return NextResponse.json(
         {
           success: false,
-          error: 'Unable to verify token mint status',
+          error: 'Failed to fetch token metadata',
           tokenId: tokenId,
         },
-        { status: 404 }
+        { status: 500 }
       );
     }
 
-    // Token is confirmed minted - fetch metadata from database
-    const metadataResult = await metadataService.getMetadataByTokenId(tokenId);
-
     if (!metadataResult) {
-      // Token is minted but metadata not found - return 404
+      // Token is minted but metadata not found in database
+      console.warn(`Metadata not found for token ${tokenId} (token is minted)`);
       return NextResponse.json(
         {
           success: false,

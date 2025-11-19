@@ -77,8 +77,13 @@ async function verifyMetadata() {
       if (nullSample.length > 0) {
         console.log('\n   Entries with tokenId = null:');
         nullSample.forEach((doc, index) => {
+          const metadata = doc.metadata || {};
+          const modelId = metadata.modelId || 'N/A';
+          const name = metadata.name || 'N/A';
           console.log(`   ${index + 1}. _id: ${doc._id}`);
-          console.log(`      Image: ${doc.metadata?.image || 'N/A'}`);
+          console.log(`      ModelId: ${modelId}`);
+          console.log(`      Name: ${name}`);
+          console.log(`      Attributes: ${metadata.attributes?.length || 0}`);
         });
       }
       
@@ -87,9 +92,29 @@ async function verifyMetadata() {
       if (assignedSample.length > 0) {
         console.log('\n   Entries with tokenId assigned:');
         assignedSample.forEach((doc, index) => {
+          const metadata = doc.metadata || {};
+          const modelId = metadata.modelId || 'N/A';
+          const name = metadata.name || 'N/A';
           console.log(`   ${index + 1}. tokenId: ${doc.tokenId}`);
-          console.log(`      Image: ${doc.metadata?.image || 'N/A'}`);
+          console.log(`      ModelId: ${modelId}`);
+          console.log(`      Name: ${name}`);
+          console.log(`      Attributes: ${metadata.attributes?.length || 0}`);
         });
+      }
+      
+      // Validate that all entries have modelId
+      const entriesWithoutModelId = await collection.countDocuments({
+        $or: [
+          { 'metadata.modelId': { $exists: false } },
+          { 'metadata.modelId': null },
+          { 'metadata.modelId': '' }
+        ]
+      });
+      
+      if (entriesWithoutModelId > 0) {
+        console.log(`\n⚠️  Warning: Found ${entriesWithoutModelId} entries without modelId`);
+      } else {
+        console.log('\n✅ All entries have a valid modelId');
       }
     }
     
