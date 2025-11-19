@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { metadataService } from '@/lib/metadata-service';
 import { contractService } from '@/lib/contract-service';
-import { processMetadataFields } from '@/lib/utils/metadata-processor';
-import { StoredTokenMetadata } from '@/types/metadata';
+import { generatePlaceholderMetadata } from '@/lib/utils/metadata-processor';
 
 /**
  * GET /metadata/[tokenId]
@@ -11,10 +10,10 @@ import { StoredTokenMetadata } from '@/types/metadata';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { tokenId: string } }
+  { params }: { params: Promise<{ tokenId: string }> }
 ) {
   try {
-    const { tokenId } = params;
+    const { tokenId } = await params;
 
     // Validate tokenId
     if (!tokenId || typeof tokenId !== 'string') {
@@ -87,16 +86,11 @@ export async function GET(
     }
 
     if (!metadataResult) {
-      // Token is minted but metadata not found in database
-      console.warn(`Metadata not found for token ${tokenId} (token is minted)`);
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Token metadata not found',
-          tokenId: tokenId,
-        },
-        { status: 404 }
-      );
+      // Token is minted but metadata not found in database (pre-reveal state)
+      // Return placeholder metadata for pre-reveal tokens
+      console.log(`Token ${tokenId} is minted but not yet revealed, returning placeholder metadata`);
+      const placeholderMetadata = generatePlaceholderMetadata(tokenId);
+      return NextResponse.json(placeholderMetadata);
     }
 
     // Return processed metadata (with generated image/animation URLs based on reveal status)

@@ -164,11 +164,13 @@ function extractNameFromArchmageAttribute(attributes?: Array<{ trait_type: strin
  * Image and animation are NEVER stored in the database, always generated
  * @param metadata - The stored metadata object (without image/animation)
  * @param isRevealed - Whether the token has been revealed (tokenId assigned)
+ * @param tokenId - The token ID (required for revealed tokens to generate default name)
  * @returns Processed metadata with generated image/animation URLs (modelId excluded)
  */
 export function processMetadataFields(
   metadata: StoredTokenMetadata,
-  isRevealed: boolean
+  isRevealed: boolean,
+  tokenId?: string
 ): TokenMetadata {
   // Get placeholder image path from environment variable
   const placeholderImagePath = process.env.METADATA_PLACEHOLDER_IMAGE_PATH;
@@ -279,10 +281,22 @@ export function processMetadataFields(
     
     // Use stored name if available (user's custom name)
     // Users will eventually be able to rename their NFTs, which will be stored in the database
-    // If no custom name is stored, name may be undefined (which is fine)
-    result.name = metadata.name && metadata.name.trim() !== '' 
-      ? metadata.name 
-      : undefined;
+    // If no custom name is stored, generate default name: "Wizzy the [color] #[tokenId]"
+    if (metadata.name && metadata.name.trim() !== '') {
+      result.name = metadata.name;
+    } else if (isRevealed && tokenId) {
+      // Generate default name for revealed tokens: "Wizzy the [color] #[tokenId]"
+      const color = extractColorFromClass(metadata.attributes);
+      const paddedTokenId = String(tokenId).padStart(5, '0');
+      
+      if (color) {
+        result.name = `Wizzy the ${color} #${paddedTokenId}`;
+      } else {
+        // Fallback if Class attribute is missing
+        result.name = `Wizzy #${paddedTokenId}`;
+      }
+    }
+    // If not revealed or no tokenId, name remains undefined
   }
 
   // Only include animation if revealed
@@ -291,5 +305,39 @@ export function processMetadataFields(
   }
 
   return result;
+}
+
+/**
+ * Generate placeholder metadata for pre-reveal tokens
+ * Used when a token is minted but metadata hasn't been revealed yet
+ * @param tokenId - The token ID to include in the placeholder name
+ * @returns Placeholder TokenMetadata
+ */
+export function generatePlaceholderMetadata(tokenId: string): TokenMetadata {
+  const placeholderImagePath = process.env.METADATA_PLACEHOLDER_IMAGE_PATH;
+  
+  if (!placeholderImagePath) {
+    throw new Error('METADATA_PLACEHOLDER_IMAGE_PATH environment variable is required');
+  }
+  
+  // Get optional base URL for relative paths
+  const baseUrl = process.env.METADATA_ASSETS_BASE_URL || process.env.NEXT_PUBLIC_API_URL;
+  
+  // Process placeholder image URL
+  const image = processUrl(placeholderImagePath, baseUrl);
+  
+  // Get default description from environment variable or use fallback
+  const defaultDescription = process.env.METADATA_DEFAULT_DESCRIPTION || 'A unique Wizzyverse NFT';
+  
+  // Generate placeholder name: "Wizzy #[tokenId]" with tokenId padded to 5 digits
+  const paddedTokenId = String(tokenId).padStart(5, '0');
+  const name = `Wizzy #${paddedTokenId}`;
+  
+  return {
+    image,
+    name,
+    description: defaultDescription,
+    // No attributes or animation for pre-reveal tokens
+  };
 }
 

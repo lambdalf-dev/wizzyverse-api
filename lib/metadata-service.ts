@@ -58,7 +58,7 @@ class MetadataService {
       // Token is revealed if it has a non-null tokenId (which it does, since we found it by tokenId)
       const isRevealed = sanitized.tokenId !== null;
       
-      const processedMetadata = processMetadataFields(sanitized.metadata, isRevealed);
+      const processedMetadata = processMetadataFields(sanitized.metadata, isRevealed, tokenId);
       
       return {
         metadata: processedMetadata,
