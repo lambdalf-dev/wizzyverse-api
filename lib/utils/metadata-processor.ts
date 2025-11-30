@@ -308,7 +308,7 @@ export function processMetadataFields(
 
   // Include animation (either placeholder or actual based on reveal status)
   if (animation) {
-    result.animation = animation;
+    result.animation_url = animation;
   }
 
   return result;
@@ -349,7 +349,7 @@ export function generatePlaceholderMetadata(tokenId: string): TokenMetadata {
   
   // Include placeholder animation if provided (optional)
   if (placeholderAnimationPath) {
-    result.animation = processUrl(placeholderAnimationPath, baseUrl);
+    result.animation_url = processUrl(placeholderAnimationPath, baseUrl);
   }
   
   return result;

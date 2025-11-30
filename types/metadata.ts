@@ -19,7 +19,7 @@ export interface StoredTokenMetadata {
  */
 export interface TokenMetadata {
   image: string; // Placeholder before reveal, actual image after reveal
-  animation?: string; // Only included after reveal
+  animation_url?: string; // Only included after reveal
   attributes?: TokenAttribute[];
   name?: string;
   description?: string;
