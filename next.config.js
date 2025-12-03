@@ -23,9 +23,6 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true, // Temporarily ignore for deployment
   },
-  eslint: {
-    ignoreDuringBuilds: true, // Temporarily ignore for deployment
-  },
   output: 'standalone',
   // Performance optimizations
   compress: true,
