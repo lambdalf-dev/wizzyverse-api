@@ -44,8 +44,11 @@ function generateImageUrl(modelId: string): string {
     throw new Error('METADATA_IMAGE_PATH environment variable is required');
   }
   
+  // Strip any leading # from modelId (in case it was accidentally included)
+  const cleanModelId = modelId.startsWith('#') ? modelId.substring(1) : modelId;
+  
   // Replace {modelId} placeholder with actual modelId
-  const url = imagePathPattern.replace(/{modelId}/g, modelId);
+  const url = imagePathPattern.replace(/{modelId}/g, cleanModelId);
   
   // Get optional base URL for relative paths
   const baseUrl = process.env.METADATA_ASSETS_BASE_URL || process.env.NEXT_PUBLIC_API_URL;
@@ -66,8 +69,11 @@ function generateAnimationUrl(modelId: string): string {
     throw new Error('METADATA_ANIMATION_PATH environment variable is required');
   }
   
+  // Strip any leading # from modelId (in case it was accidentally included)
+  const cleanModelId = modelId.startsWith('#') ? modelId.substring(1) : modelId;
+  
   // Replace {modelId} placeholder with actual modelId
-  const url = animationPathPattern.replace(/{modelId}/g, modelId);
+  const url = animationPathPattern.replace(/{modelId}/g, cleanModelId);
   
   // Get optional base URL for relative paths
   const baseUrl = process.env.METADATA_ASSETS_BASE_URL || process.env.NEXT_PUBLIC_API_URL;
