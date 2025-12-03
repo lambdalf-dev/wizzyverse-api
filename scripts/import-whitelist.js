@@ -52,35 +52,102 @@ async function importWhitelist(jsonFilePath) {
     await collection.createIndex({ walletAddress: 1 }, { unique: true });
     console.log('✅ Index created');
     
-    // Prepare documents for insertion
-    const documents = entries.map(([address, data]) => {
+    // Detect duplicates in source data
+    const addressMap = new Map();
+    const duplicates = [];
+    
+    entries.forEach(([address, data]) => {
       const normalizedAddress = address.toLowerCase();
       
-      // Validate address format
-      if (!/^0x[a-fA-F0-9]{40}$/.test(normalizedAddress)) {
-        throw new Error(`Invalid Ethereum address format: ${address}`);
+      if (addressMap.has(normalizedAddress)) {
+        const existing = addressMap.get(normalizedAddress);
+        if (!duplicates.find(d => d.address === normalizedAddress)) {
+          duplicates.push({
+            address: normalizedAddress,
+            occurrences: [existing.originalAddress, address]
+          });
+        } else {
+          const dup = duplicates.find(d => d.address === normalizedAddress);
+          dup.occurrences.push(address);
+        }
+      } else {
+        addressMap.set(normalizedAddress, { originalAddress: address, data });
       }
-      
-      // Validate proof structure
-      if (!data.proof || !data.proof.r || !data.proof.s || typeof data.proof.v !== 'number') {
-        throw new Error(`Invalid proof structure for address: ${address}`);
-      }
-      
-      // Validate alloted
-      if (typeof data.alloted !== 'number' || data.alloted < 0) {
-        throw new Error(`Invalid alloted value for address: ${address}`);
-      }
-      
-      return {
-        walletAddress: normalizedAddress,
-        alloted: data.alloted,
-        proof: {
-          r: data.proof.r,
-          s: data.proof.s,
-          v: data.proof.v,
-        },
-      };
     });
+    
+    // Print duplicates if found
+    if (duplicates.length > 0) {
+      console.log(`\n⚠️  Found ${duplicates.length} duplicate address(es) in source data:`);
+      duplicates.forEach((dup, index) => {
+        console.log(`\n   ${index + 1}. Address: ${dup.address}`);
+        console.log(`      Appears ${dup.occurrences.length} time(s) with these original addresses:`);
+        dup.occurrences.forEach((origAddr, idx) => {
+          console.log(`         ${idx + 1}. ${origAddr}`);
+        });
+      });
+      console.log('\n   Note: Only the first occurrence will be used for each duplicate address.\n');
+    } else {
+      console.log('✅ No duplicates found in source data');
+    }
+    
+    // Prepare documents for insertion (using first occurrence of each address)
+    const documents = [];
+    const validationErrors = [];
+    
+    Array.from(addressMap.entries()).forEach(([normalizedAddress, { data, originalAddress }], index) => {
+      try {
+        // Validate address format
+        if (!/^0x[a-fA-F0-9]{40}$/.test(normalizedAddress)) {
+          throw new Error(`Invalid Ethereum address format: ${originalAddress}`);
+        }
+        
+        // Validate proof structure
+        if (!data.proof || !data.proof.r || !data.proof.s || typeof data.proof.v !== 'number') {
+          throw new Error(`Invalid proof structure for address: ${originalAddress}`);
+        }
+        
+        // Validate alloted
+        if (typeof data.alloted !== 'number' || data.alloted < 0) {
+          throw new Error(`Invalid alloted value for address: ${originalAddress}`);
+        }
+        
+        documents.push({
+          walletAddress: normalizedAddress,
+          alloted: data.alloted,
+          proof: {
+            r: data.proof.r,
+            s: data.proof.s,
+            v: data.proof.v,
+          },
+        });
+      } catch (error) {
+        validationErrors.push({
+          address: originalAddress,
+          normalizedAddress: normalizedAddress,
+          error: error.message
+        });
+      }
+    });
+    
+    // Print validation errors if any
+    if (validationErrors.length > 0) {
+      console.log(`\n❌ Found ${validationErrors.length} record(s) with validation errors:`);
+      validationErrors.forEach((err, index) => {
+        console.log(`\n   ${index + 1}. Address: ${err.address}`);
+        console.log(`      Normalized: ${err.normalizedAddress}`);
+        console.log(`      Error: ${err.error}`);
+      });
+      console.log('\n   These records will be skipped during insertion.\n');
+    }
+    
+    // Check if there are any valid documents to insert
+    if (documents.length === 0) {
+      console.log('\n⚠️  No valid documents to insert after validation.');
+      if (validationErrors.length > 0) {
+        console.log('   All records failed validation. Please fix the errors above and try again.');
+      }
+      return;
+    }
     
     // Clear existing data to ensure clean import
     console.log('🧹 Clearing existing data from collection...');
@@ -89,8 +156,48 @@ async function importWhitelist(jsonFilePath) {
     
     // Insert all documents
     console.log(`📝 Inserting ${documents.length} documents...`);
-    const result = await collection.insertMany(documents, { ordered: false });
-    console.log(`✅ Successfully inserted ${result.insertedCount} documents`);
+    let result;
+    const insertionErrors = [];
+    
+    try {
+      result = await collection.insertMany(documents, { ordered: false });
+      console.log(`✅ Successfully inserted ${result.insertedCount} documents`);
+    } catch (error) {
+      // Handle BulkWriteError which contains details about failed insertions
+      if (error.name === 'MongoBulkWriteError' && error.writeErrors) {
+        result = error.result || { insertedCount: 0 };
+        
+        error.writeErrors.forEach((writeError) => {
+          const failedDoc = documents[writeError.index];
+          insertionErrors.push({
+            address: failedDoc.walletAddress,
+            error: writeError.errmsg || writeError.err.message,
+            code: writeError.err.code
+          });
+        });
+        
+        // Still log successful insertions if any
+        if (result.insertedCount > 0) {
+          console.log(`⚠️  Partially inserted: ${result.insertedCount} documents succeeded`);
+        }
+      } else {
+        // For other errors, rethrow
+        throw error;
+      }
+    }
+    
+    // Print insertion errors if any
+    if (insertionErrors.length > 0) {
+      console.log(`\n❌ Failed to insert ${insertionErrors.length} record(s):`);
+      insertionErrors.forEach((err, index) => {
+        console.log(`\n   ${index + 1}. Address: ${err.address}`);
+        console.log(`      Error: ${err.error}`);
+        if (err.code) {
+          console.log(`      Error Code: ${err.code}`);
+        }
+      });
+      console.log('');
+    }
     
     // Verify import
     const totalCount = await collection.countDocuments();
@@ -105,7 +212,15 @@ async function importWhitelist(jsonFilePath) {
       });
     }
     
-    console.log('\n✅ Import completed successfully!');
+    // Final summary
+    const totalFailed = validationErrors.length + insertionErrors.length;
+    if (totalFailed > 0) {
+      console.log(`\n⚠️  Import completed with ${totalFailed} failed record(s).`);
+      console.log(`   - Validation errors: ${validationErrors.length}`);
+      console.log(`   - Insertion errors: ${insertionErrors.length}`);
+    } else {
+      console.log('\n✅ Import completed successfully!');
+    }
     
   } catch (error) {
     console.error('\n❌ Error importing whitelist data:');

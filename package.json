@@ -15,6 +15,10 @@
     "import-metadata-csv": "node scripts/import-metadata-csv.js",
     "shuffle-reveal": "node scripts/shuffle-reveal.js",
     "verify-metadata": "node scripts/verify-metadata.js",
+    "verify-archmage-distribution": "node scripts/verify-archmage-distribution.js",
+    "verify-whitelist": "node scripts/verify-whitelist.js",
+    "export-model-token-mapping": "node scripts/export-model-token-mapping.js",
+    "find-duplicates": "node scripts/find-duplicates.js",
     "clear-metadata": "node scripts/clear-metadata.js",
     "clear-whitelist": "node scripts/clear-whitelist.js"
   },
@@ -22,7 +26,6 @@
     "dotenv": "^17.2.1",
     "ethers": "^6.15.0",
     "mongodb": "^6.3.0",
-    "next": "^15.3.3",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },
